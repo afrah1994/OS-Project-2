@@ -5,12 +5,18 @@
  *      Author: afrah
  */
 
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <time.h>
+#include <stdlib.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <string.h>
-#include<stdlib.h>
-#include<ctype.h>
+#include <getopt.h>
+#include<stdbool.h>
+#include <ctype.h>
 #include<sys/wait.h>
-#include<unistd.h>
 struct entry {
     unsigned int truth;
     int element;
@@ -156,23 +162,19 @@ void forkingfunction(int size, int values[],int numarray[])
 	    	   }
 	    }
 }
-
-int main(void)
+void readingfile(char *input,char *output)
 {
-    int tek;
-    int size,i,totalsize=0;
+	 int tek;
+	    int size,i,totalsize=0;
 
-    char c;
-
-
-
+	    char c;
     // open file
-    FILE *myFile = fopen("input.dat", "r");
+    FILE *myFile = fopen(input, "r");
     // if opening file fails, print error message and exit 1
     if (myFile == NULL)
     {
         perror("Error: Failed to open file.");
-        return 1;
+
     }
     fscanf(myFile, "%d", &size);
     printf("size %d",size);
@@ -191,13 +193,12 @@ i=0;
    		    if (isdigit(c))
    		    {
    		    	numarray[i]=numarray[i]+1;
-   		    	//printf("numarray[%d]=%d",i,numarray[i]);
+
    		    	totalsize=totalsize+numarray[i];
    		    }
    		    else if(c=='\n')
    		    	{
-   		    	//printf("numarray[%d]=%d",i,numarray[i]);
-   		    	//printf("starting new line");
+
    		    	i++;
    		    	}
 
@@ -228,5 +229,56 @@ printf("\n");
 
     // close file
     fclose(myFile);
+}
+
+int main(int argc, char **argv)
+{
+    int options;
+    bool flagh=false,flagi=false,flago=false,flagt=false;
+    char *inputfilename,*outputfilename;
+    inputfilename="input.dat";
+    outputfilename="output.dat";
+    int t=10;
+    while((options=getopt(argc,argv,"-:hi::o::t::"))!=-1)
+    	    	{
+    	    		switch(options)
+    	    		{
+    	    		case 'h':
+    	    			    			printf("Please read readMe.txt to understand how to run the project\n");
+    	    			    			flagh=true;
+    	    			    			break;
+    	    			    			exit(EXIT_SUCCESS);
+    	    		case 'i':
+
+    	    			    			flagi=true;
+    	    			    			if(optarg)
+    	    			    			{
+    	    			    				inputfilename=optarg;
+    	    			    			}
+    	    			    			break;
+    	    		case 'o':
+    	    						flago=true;
+    	    						if(optarg)
+    	    						{
+    	    							outputfilename=optarg;
+    	    						}
+    	    						break;
+    	    		case 't':
+    	    				flagt=true;
+    	    				if(optarg)
+    	    				{
+    	    					t=atoi(optarg);
+    	    				}
+    	    				break;
+    	    		}
+    	    	}
+    if(flagi||flago||flagt)
+    {
+    	readingfile(inputfilename,outputfilename);
+    }
+
+
+
+
     return 0;
 }
