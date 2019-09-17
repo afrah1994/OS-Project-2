@@ -17,19 +17,26 @@
 #include<stdbool.h>
 #include <ctype.h>
 #include<sys/wait.h>
+#include<signal.h>
 struct entry {
     unsigned int truth;
     int element;
     unsigned int count;
     struct entry *prev;
 };
+bool alarm_flag=false;
 typedef struct entry entry;
-int subset_sum(const int *weights, size_t len, int target,int **solution)
+
+int subset_sum(const int *weights, size_t len, int target,int **solution,pid_t pID,char *output, int flag)
 {
+	clock_t t;
+	double time_limit=1;
+    t = clock();
     entry **table;
     int i, j;
     entry *head;
     int count = 0;
+    flag=0;
 
     table = malloc((target + 1) * sizeof(entry *));
     for (i = 0; i <= target; i++) {
@@ -70,7 +77,32 @@ int subset_sum(const int *weights, size_t len, int target,int **solution)
                 }
             }
         }
+        t = clock() - t;
+        double time_taken = ((double)t)/CLOCKS_PER_SEC ;
+        if(time_taken>time_limit)
+           {
+        	   printf("\nkilling the child process\n");
+        	   *solution=NULL;
+        	   free(table);
+        	   FILE *fp;
+
+                  fp = fopen(output, "a+");
+                  if (fp == NULL)
+                      {perror("Unable to open the output file:");}
+                  else
+                  {
+                	  fprintf(fp,"\n%d: NO valid subset found after 1 second",getpid());
+                  }
+                  fclose(fp);
+                  flag=1;
+                  free(table);
+                  //return 0;
+                  break;
+           }
     }
+
+if(flag!=1)
+{
 
     if (!table[target][len].truth) {
         /* No solution */
@@ -89,7 +121,6 @@ int subset_sum(const int *weights, size_t len, int target,int **solution)
             }
         }
     }
-
     for (i = 0; i <= target; i++) {
         free(table[i]);
     }
@@ -97,17 +128,23 @@ int subset_sum(const int *weights, size_t len, int target,int **solution)
 
     return count;
 }
-void forkingfunction(int size, int values[],int numarray[])
+else
+    return count;
+}
+
+void forkingfunction(int size, int values[],int numarray[],char *output)
 {
 	int i,j,starting=1,temp=1,status;
 
 	for(i=0;i<size;i++,temp++)
 	    {
 	    	printf("\nStarting fork for loop i=%d \n",i);
+
 	    	 pid_t pID = vfork();
 
 	    	   if (pID == 0)                // child
-	    	   {
+	    	   { //clock_t t;
+	    	    //t = clock();
 	    		   printf("\nchild pid %d\n",getpid());
 
 
@@ -116,37 +153,58 @@ void forkingfunction(int size, int values[],int numarray[])
 	    		   starting++;
 	    		   int present_array[numarray[temp]];
 	    		   printf("values for child:\n");
-	    		   for(j=0;j<(numarray[temp]-1);j++)
+	    		   for(j=0;j<numarray[temp];j++)
 	    		   {
 	    			   present_array[j]=values[starting];
 	    			   starting++;
 	    			   printf("present_array[%d]=%d ",j,present_array[j]);
 	    		   }
-	    		   const size_t len = sizeof(present_array) / sizeof(present_array[0]);
-	    		        int *solution;
-	    		       const int count = subset_sum(present_array, len, sum, &solution);
+	    		   const size_t len = sizeof(present_array) / sizeof(present_array[0]);//lenth of present_array
+	    		        int *solution;int flag=0;
+	    		       const int count = subset_sum(present_array, len, sum, &solution,pID,output,flag);
+	    		       if(flag==1)
+	    		       {
+	    		    	   printf("\nflag=1");
+	    		    	   exit(EXIT_SUCCESS);
+	    		    	    kill(pID,SIGKILL);
+	    		       }
+
+	    		       else
+	    		       {
+	    		       FILE *fp;
+
+	    		       	    		             fp = fopen(output, "a+");
+	    		       	    		             if (fp == NULL)
+	    		       	    		                 {perror("Unable to open the output file:");}
 	    		       if (count)
 	    		       {
 	    		           int i;
-	    		           printf("Found a solution\n");
-	    		           printf("Elements:\n");
+
+
+	    		            	 fprintf(fp,"\n%d:",getpid());
+
+	    		            	 printf("\nlen=%lu\n",len);
 	    		           for (i = 0; i < len; i++)
 	    		           {
 	    		               if (solution[i])
 	    		               {
-	    		                   printf("%u ", present_array[i]);
+	    		            		   fprintf(fp," %u ", present_array[i]);
+
 	    		               }
 	    		           }
-	    		           putchar('\n');
+	    		           fprintf(fp,"=%d\n",sum);
 	    		       }
 	    		       else
 	    		       {
-	    		           printf("No solution\n");
+	    		           fprintf(fp,"\n%d: No subset of numbers summed to %d\n",getpid(),sum);
 	    		       }
 
 
-	    		       exit(EXIT_SUCCESS);
+
+
+	    		      exit(EXIT_SUCCESS);
 	    		       kill(pID,SIGKILL);
+	    		       }
 	    	   }
 	    	   else if (pID < 0)            // failed to fork
 	    	   {
@@ -178,37 +236,48 @@ void readingfile(char *input,char *output)
     }
     fscanf(myFile, "%d", &size);
     printf("size %d",size);
-int values[size],numarray[size];
-memset( values, 0, size*sizeof(int) );//contains array containing line numbers
+int numarray[size];
 memset(numarray,0,size*sizeof(int));//contains size of each line
+
 for(i=0;i<=size;i++)
 {
-	values[i]=1;//initializing values in radica
 	numarray[i]=0;//initializing array values to 0
 }
 i=0;
     while ((c=getc(myFile)) != EOF)
     {
    	   	  // Increment character count if NOT new line or space
-   		    if (isdigit(c))
+   		    if (c==' ')
    		    {
+   		    	printf("\n");
    		    	numarray[i]=numarray[i]+1;
+   		    	printf("numarray[%d]=%d",i,numarray[i]);
 
-   		    	totalsize=totalsize+numarray[i];
    		    }
    		    else if(c=='\n')
    		    	{
-
    		    	i++;
    		    	}
 
     }
-   // printf("numarray[2]=%d\n",numarray[2]);
+    for(i=1;i<=size;i++)
+    {
+    	totalsize=totalsize+numarray[i];
+    }
+    totalsize=totalsize+size;
+    printf("\ntotalsize=%d",totalsize);
+
 
     fseek(myFile, 0, SEEK_SET);//making the file pointer to beginning of the file
-    //for(i=0;i<size;i++)
+
     // read values from file until EOF is returned by fscanf
 printf("\n");
+int values[totalsize];
+memset( values, 0, totalsize*sizeof(int) );
+for(i=0;i<totalsize;i++)
+{
+	values[i]=0;
+}
     for ( i = 0; i < totalsize; ++i)
     {
 
@@ -225,7 +294,7 @@ printf("\n");
     }
     printf("\n");
 
-    forkingfunction(size,values,numarray);
+    forkingfunction(size,values,numarray,output);
 
     // close file
     fclose(myFile);
