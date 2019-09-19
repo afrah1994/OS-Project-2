@@ -18,18 +18,28 @@
 #include <ctype.h>
 #include<sys/wait.h>
 #include<signal.h>
+#include <sys/mman.h>
 struct entry {
     unsigned int truth;
     int element;
     unsigned int count;
     struct entry *prev;
 };
-bool alarm_flag=false;
+
 typedef struct entry entry;
+
+int length;
+int PID[1000],counterfork=0;
+int tclock=0.02;
+clock_t start;
+clock_t ending;
+//functions for the forking function
+static int *starting;
+int temp=1;
 
 int subset_sum(const int *weights, size_t len, int target,int **solution,pid_t pID,char *output, int flag)
 {
-	clock_t t;
+	clock_t t,end;
 	double time_limit=1;
     t = clock();
     entry **table;
@@ -77,8 +87,9 @@ int subset_sum(const int *weights, size_t len, int target,int **solution,pid_t p
                 }
             }
         }
-        t = clock() - t;
-        double time_taken = ((double)t)/CLOCKS_PER_SEC ;
+        end = clock();
+         double time_taken = (double)(end-t)/CLOCKS_PER_SEC ;
+        // printf("\ntime_taken=%lf",time_taken);
         if(time_taken>time_limit)
            {
         	   printf("\nkilling the child process\n");
@@ -134,42 +145,48 @@ else
 
 void forkingfunction(int size, int values[],int numarray[],char *output)
 {
-	int i,j,starting=1,temp=1,status;
+	//starting=1,temp=1;
+	 starting = mmap(NULL, sizeof *starting, PROT_READ | PROT_WRITE,  MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	 *starting=1;
 
+	int i,j,status;
+
+	      PID[counterfork]=getppid();
+	      	    		   counterfork++;
 	for(i=0;i<size;i++,temp++)
 	    {
 	    	printf("\nStarting fork for loop i=%d \n",i);
 
-	    	 pid_t pID = vfork();
+
+	    	 pid_t pID = fork();
 
 	    	   if (pID == 0)                // child
 	    	   { //clock_t t;
 	    	    //t = clock();
+	    		   printf("\n initial starting=%d, temp=%d",*starting,temp);
 	    		   printf("\nchild pid %d\n",getpid());
 
-
-	    		   int sum=values[starting];
+	    		   PID[counterfork]=getpid();
+	    		   counterfork++;
+	    		   int sum=values[*starting];
 	    		   printf("sum=%d\n",sum);
-	    		   starting++;
+	    		   *starting=*starting+1;
 	    		   int present_array[numarray[temp]];
 	    		   printf("values for child:\n");
 	    		   for(j=0;j<numarray[temp];j++)
 	    		   {
-	    			   present_array[j]=values[starting];
-	    			   starting++;
+	    			   present_array[j]=values[*starting];
+	    			   *starting=*starting+1;
 	    			   printf("present_array[%d]=%d ",j,present_array[j]);
 	    		   }
+
 	    		   const size_t len = sizeof(present_array) / sizeof(present_array[0]);//lenth of present_array
 	    		        int *solution;int flag=0;
 	    		       const int count = subset_sum(present_array, len, sum, &solution,pID,output,flag);
-	    		       if(flag==1)
-	    		       {
-	    		    	   printf("\nflag=1");
-	    		    	   exit(EXIT_SUCCESS);
-	    		    	    kill(pID,SIGKILL);
-	    		       }
 
-	    		       else
+	    		       printf("\nstarting= %d,temp=%d ",*starting,temp);
+
+	    		      // else
 	    		       {
 	    		       FILE *fp;
 
@@ -210,13 +227,31 @@ void forkingfunction(int size, int values[],int numarray[],char *output)
 	    	   {
 	    		   perror("Failed to fork:");
 	    	   }
-	    	   else
+	    	   else if(pID>0)
 	    	   {
-	    		  // wait(NULL);
-	    		   if ((pID = wait(&status)) == -1)
-	    		   		    		   {
-	    		   		    			   perror("Error in wait:");
-	    		   		    		   }
+	    		   printf("\nhello from parent");
+	    		   ending=clock();
+	    		   	    		      /* double time_difference = (double)(ending-start)/CLOCKS_PER_SEC ;
+	    		   	    		       printf("\ntime_difference=%lf\n",time_difference);
+	    		   	    		               if(time_difference>tclock)
+	    		   	    		       	    		   {
+	    		   	    		            	   printf("time limit reached");
+	    		   	    		       	    		   int i=0;
+	    		   	    		       	    		   	//for(i=0;i<length;i++)
+	    		   	    		       	    		   	{
+	    		   	    		       	    			   exit(0);
+	    		   	    		       	    		   	kill(0,SIGKILL);
+	    		   	    		       	    		   	}
+	    		   	    		       	    		    // return 0;
+	    		   	    		       	    		   }*/
+
+	    		   	    		            int corpse;
+	    		   	    		           		    		   int status;
+	    		   	    		           		    		   while ((corpse = waitpid(pID, &status, 0)) != pID && corpse != -1)
+	    		   	    		           		    		   {
+	    		   	    		           		    		       printf("%d just died",corpse);
+	    		   	    		           		    		   }
+
 	    	   }
 	    }
 }
@@ -236,9 +271,10 @@ void readingfile(char *input,char *output)
     }
     fscanf(myFile, "%d", &size);
     printf("size %d",size);
+    length=size;
 int numarray[size];
 memset(numarray,0,size*sizeof(int));//contains size of each line
-
+memset(PID,0,size*sizeof(int));
 for(i=0;i<=size;i++)
 {
 	numarray[i]=0;//initializing array values to 0
@@ -249,9 +285,9 @@ i=0;
    	   	  // Increment character count if NOT new line or space
    		    if (c==' ')
    		    {
-   		    	printf("\n");
+   		    //	printf("\n");
    		    	numarray[i]=numarray[i]+1;
-   		    	printf("numarray[%d]=%d",i,numarray[i]);
+   		    	//printf("numarray[%d]=%d",i,numarray[i]);
 
    		    }
    		    else if(c=='\n')
@@ -299,15 +335,37 @@ for(i=0;i<totalsize;i++)
     // close file
     fclose(myFile);
 }
-
+/*static void myhandler(int s)
+{
+	printf("\nTimed out");
+	exit(EXIT_SUCCESS);
+}
+static int setupinterrupt(void)
+{
+	struct sigaction act;
+	act.sa_handler=myhandler;
+	act.sa_flags=0;
+	return(sigemptyset(&act.sa_mask)|| sigaction(SIGPROF,&act,NULL));
+}
+static int setupitimer(void)
+{
+	struct itimerval value;
+	value.it_interval.tv_sec=0.4;
+	value.it_interval.tv_usec=0;
+	value.it_value=value.it_interval;
+	return(setitimer(ITIMER_PROF,&value,NULL));
+}*/
 int main(int argc, char **argv)
 {
+
+	      /* Check the flag once in a while to see when to quit. */
+	start=clock();
     int options;
     bool flagh=false,flagi=false,flago=false,flagt=false;
     char *inputfilename,*outputfilename;
     inputfilename="input.dat";
     outputfilename="output.dat";
-    int t=10;
+
     while((options=getopt(argc,argv,"-:hi::o::t::"))!=-1)
     	    	{
     	    		switch(options)
@@ -336,7 +394,7 @@ int main(int argc, char **argv)
     	    				flagt=true;
     	    				if(optarg)
     	    				{
-    	    					t=atoi(optarg);
+    	    					tclock=atoi(optarg);
     	    				}
     	    				break;
     	    		}
@@ -345,6 +403,17 @@ int main(int argc, char **argv)
     {
     	readingfile(inputfilename,outputfilename);
     }
+   /* if(setupinterrupt()== -1)
+    {
+    	perror("logParse:Failed to set up handler for SIGPROF");
+    	return 1;
+    }
+    if(setupitimer()==-1)
+    {
+    	perror("Failed to set up the ITIMER_PROF interval timer");
+    	return 1;
+    }*/
+
 
 
 
