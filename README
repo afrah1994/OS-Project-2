@@ -1,0 +1,38 @@
+Brief Description
+This program performs subset sum problem on given integers in a file. The first line of the file will give us the number of subset sum problems to be solved and each subsequent line will have a target sum value followed by a list of integers. The program first reads the file into an array. This array is passsed to a forking function which forks off children = number of subset sum problems to be solved (mentioned in first line of file). The result is written to output file along with each childs PID. The array uses global pointers to update the array poisition. Each forked child has 1 second to complete the subset sum problem or a time out message will be written to the output file. The over all program can run at default 10 seconds.
+
+How to run the program
+These are the following commands that the project can do:
+  -h 
+  -i , -iinputfilename
+  -o , -ooutputfilename 
+  -t, -ttimeinseconds
+If we do want to specify an input/output file name or time limit there can be no space between the the command (-i/-o/-t) and the file names/time value as shown in the example above If no values are passed along with -i/-o/-t the default values input.dat, output.dat, 10(seconds) will be used. 
+The program will notify once the output file has been updated with a message or if any error arises. 
+
+Functions and flow of the program :
+
+1. int main(int argc, char **argv)
+The main function starts by setting flags for the command line options and uses getopt() to parse the options. The readingfile function is called in the end of main.
+	
+2. void readingfile(char *input,char *output)
+The reading function opens the input file. The variable size contains the number of subset problems the program has to solve (i.e the first number on the file). I array numarray[size] has the number of integers in each line (include the target sum). The totalsize variable stores the total number of integers in the file from beginning to end. The array values[totalsize] stores the integers. values[],size,output file name, num_array[] is then passed to the forking function.
+
+3. void forkingfunction(int size, int values[],int numarray[],char *output)
+Forking function goes in a for loop and forks off children =size. Each child uses data in numarray to get target sum and list of integers which it puts into presentarray[]. The subset sum function is called. The parent waits for the child to finish before another child is forked off using waitpid. A global variable pointer 'start' is a shared memory between child processes and parent process that has the updated position from array where processing should resume for the next child. This is done using mmap().
+ 
+4. int subset_sum(const int *weights, size_t len, int target,int **solution,pid_t pID,char *output)
+A part of this code was taken from http://www.martinbroadhurst.com/subset-sum-using-dynamic-programming-in-c.html 
+The code basically creates a (2D matrix) table with sum+1 columns and array of integers(present array) + 1 rows. A solution is present if table[rows-1][columns-1]=true. We backtrack and find out which numbers from the presentarray[] gave us the true value. An additional feature in this program allows a child process working on the array to terminate if the matrix filling/backtracking takes more than 1 second. The output file will contain a message saying that no solution was found after 1 second. 
+
+
+
+Problems during the project
+1. Till the last night of final submission my fork() was not working and I had changed my code to implement vfork() instead. This problem was fixed once I used a global variable pointer to store the array position for next child to start executing. I did this using mmap().
+
+2. I had a very hard time with setting the signal alarm and itimer. The multiple functions kept resetting my alarms for whatever reason. The handler was not getting executed. I fixed this issue by using sleep() in main and sleep() in signal handler for SIGTERM. This allows the program to exit gracefully with return code 0.
+
+
+
+
+
